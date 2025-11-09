@@ -532,38 +532,44 @@ app.post('/filtrar_nombre', async (req, res) => {
 
 // --- Filtrar por tipo de juego ---
 app.post('/filtrar_tipo_juego', async (req, res) => {
-    try{
-        const {id_tipo_juego} = req.body
+    try {
+        const { id_tipo_juego } = req.body
 
-        // Buscar todas las relaciones que tengan ese tipo de juego
         const relaciones = await JuegoTipoJuego.find({ id_tipo_juego })
-            .populate('id_juego') // traemos info completa del juego
+            .populate('id_juego')
             .exec()
 
-        if(!relaciones || relaciones.length === 0){
-            return res.status(404).json({
-                success: false,
-                message: 'No se encontraron juegos para ese tipo'
-            })
-        }
+        // Buscar tipos y reseñas para cada juego
+        const resultados = await Promise.all(
+            relaciones.map(async (relacion) => {
+                const tipos = await JuegoTipoJuego.find({ id_juego: relacion.id_juego._id })
+                    .populate("id_tipo_juego", "nombre_tipo")
 
-        // Extraer los juegos
-        const juegos = relaciones.map(rel => rel.id_juego)
+                const resenas = await Resena.find({ id_juego: relacion.id_juego._id })
+                    .sort({ createdAt: -1 })
+
+                return {
+                    juego: relacion.id_juego,
+                    tipos,
+                    cantidad_resenas: resenas.length,
+                    resenas,
+                }
+            })
+        );
 
         return res.status(200).json({
             success: true,
-            count: juegos.length,
-            data: juegos
-        })
-    }
-    catch(error){
-        console.error('Error: ' + error)
+            data: resultados,
+        });
+    } catch (error) {
+        console.error('Error: ' + error);
         return res.status(500).json({
             success: false,
-            message: 'No se pudo filtrar los juegos por su tipo de juego'
+            message: 'No se pudo filtrar los juegos por su tipo de juego',
         })
     }
 })
+
 
 // --- Filtrar por estado del juego ---
 app.post('/filtrar_estado', async (req, res) => {
@@ -579,10 +585,27 @@ app.post('/filtrar_estado', async (req, res) => {
             })
         }
 
+        // Buscar tipos y reseñas para cada juego
+        const resultados = await Promise.all(
+            buscar_juegos.map(async (juego) => {
+                const tipos = await JuegoTipoJuego.find({ id_juego: juego._id })
+                    .populate("id_tipo_juego", "nombre_tipo")
+
+                const resenas = await Resena.find({ id_juego: juego._id })
+                    .sort({ createdAt: -1 })
+
+                return {
+                    juego,
+                    tipos,
+                    cantidad_resenas: resenas.length,
+                    resenas,
+                }
+            })
+        );
+
         return res.status(200).json({
             success: true,
-            count: buscar_juegos.length,
-            data: buscar_juegos
+            data: resultados
         })
     }
     catch(error){

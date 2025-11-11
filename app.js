@@ -405,10 +405,10 @@ app.post('/obtener_resenas', async (req, res) => {
 // --- Editar Reseña ---
 app.put('/editar_resena', async (req, res) => {
     try{
-        const {id_resena, descripcion} = req.body
+        const {nombre_autor, id_resena, descripcion} = req.body
 
         await Resena.findByIdAndUpdate(id_resena, {
-            descripcion
+            nombre_autor, descripcion
         }, {new: true})
 
         return res.status(200).json({

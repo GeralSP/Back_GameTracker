@@ -339,7 +339,7 @@ app.post('/agregar_resena', async (req, res) => {
         await nueva_resena.save()
 
         return res.status(201).json({
-            success: false,
+            success: true,
             message: 'Reseña agregada con exito'
         })
     }

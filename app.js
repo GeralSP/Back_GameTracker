@@ -236,7 +236,7 @@ app.get('/obtener_juegos', async (req, res) => {
 // --- Editar Juego ---
 app.put('/editar_juego', async (req, res) => {
     try {
-        const { id_juego, nombre, estado, puntuacion, horas_jugadas, id_tipo_juego } = req.body
+        const { id_juego, imagen_url, nombre, estado, puntuacion, horas_jugadas, id_tipo_juego } = req.body
 
         const buscar_juego = await Juego.findOne({
             nombre: nombre,
@@ -253,7 +253,7 @@ app.put('/editar_juego', async (req, res) => {
         // Actualizar datos del juego
         const editar_juego = await Juego.findByIdAndUpdate(
             id_juego,
-            { nombre, estado, puntuacion, horas_jugadas },
+            { imagen_url, nombre, estado, puntuacion, horas_jugadas },
             { new: true }
         )
 

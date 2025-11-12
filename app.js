@@ -618,6 +618,53 @@ app.post('/filtrar_estado', async (req, res) => {
 })
 
 
+// --- Filtrar por puntuacion del juego ---
+app.post('/filtrar_puntuacion', async (req, res) => {
+    try{
+        const {puntuacion} = req.body
+
+        const buscar_juegos = await Juego.find({puntuacion})
+
+        if(!buscar_juegos || buscar_juegos.length === 0){
+            return res.status(404).json({
+                success: false,
+                message: 'No se encontraron juegos para ese tipo'
+            })
+        }
+
+        // Buscar tipos y reseñas para cada juego
+        const resultados = await Promise.all(
+            buscar_juegos.map(async (juego) => {
+                const tipos = await JuegoTipoJuego.find({ id_juego: juego._id })
+                    .populate("id_tipo_juego", "nombre_tipo")
+
+                const resenas = await Resena.find({ id_juego: juego._id })
+                    .sort({ createdAt: -1 })
+
+                return {
+                    juego,
+                    tipos,
+                    cantidad_resenas: resenas.length,
+                    resenas,
+                }
+            })
+        );
+
+        return res.status(200).json({
+            success: true,
+            data: resultados
+        })
+    }
+    catch(error){
+        console.error('Error: ' + error)
+        return res.status(500).json({
+            success: false,
+            message: 'No se pudo filtrar los juegos por su estado'
+        })
+    }
+})
+
+
 
 // ================================================================================
 // ============================== Escucha del puerto ==============================

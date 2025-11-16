@@ -441,10 +441,10 @@ app.put('/editar_resena', async (req, res) => {
 })
 
 // --- Eliminar Reseña ---
-app.post('/eliminar_resena', async (req, res) => {
+app.delete('/eliminar_resena/:id_resena', async (req, res) => {
     try{
         //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
-        const {id_resena} = req.body
+        const {id_resena} = req.params
 
         const buscar_resena = await Resena.findById(id_resena)
 

@@ -1,6 +1,8 @@
 const express = require('express');
+const session = require('express-session')
 const mongoose = require('mongoose')
 const cors = require('cors')
+const bcrypt = require('bcryptjs');
 
 
 
@@ -12,6 +14,12 @@ const app = express()
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cors());
+app.use(session({
+    secret:'1234',
+    resave:false,
+    saveUninitialized:true,
+    cookie:{secure:false}
+}))
 
 
 
@@ -71,8 +79,7 @@ conect.on('error', (error) => {
 const juegoSchema = new mongoose.Schema({
     imagen_url: {type: String, required: true},
     nombre: {type: String, required: true},
-    estado: {type: String, default: 'No jugado'},
-    puntuacion: {type: Number, default: 0},
+    promedio_puntuacion: {type: Number, default: 0},
     horas_jugadas: {type: Number, default: 0}
 })
 
@@ -80,23 +87,37 @@ const tipo_juegoSchema = new mongoose.Schema({
     nombre_tipo: {type: String, required: true}
 })
 
+const usuarioShema = new mongoose.Schema({
+    nombre_usuario: { type: String, required: true, unique: true },
+    contrasena: { type: String, required: true }
+})
+
 const resenaSchema = new mongoose.Schema({
-    nombre_autor: {type: String, required: true, default: 'Usuario_Anonimo'},
     descripcion: {type: String, required: true},
     id_juego: {type: mongoose.Schema.Types.ObjectId, ref: "juego"},
+    id_usuario: {type: mongoose.Schema.Types.ObjectId, ref: "usuario"},
     createdAt: {type: Date, default: Date.now}
 })
 
-// "tabla intermedia"
+
+// "tablas intermedias"
 const juego_tipo_juegoSchema = new mongoose.Schema({
 id_juego: {type: mongoose.Schema.Types.ObjectId, ref: "juego"},
 id_tipo_juego: {type: mongoose.Schema.Types.ObjectId, ref: "tipo_juego"}
+})
+
+const juego_usuarioSchema = new mongoose.Schema({
+id_juego: {type: mongoose.Schema.Types.ObjectId, ref: "juego"},
+id_usuario: {type: mongoose.Schema.Types.ObjectId, ref: "usuario"},
+estado: {type: String, default: 'No jugado'},
+puntuacion: {type: Number, default: 0},
 })
 
 
 // --- Modelos ---
 const Juego = mongoose.model('juego', juegoSchema);
 const TipoJuego = mongoose.model('tipo_juego', tipo_juegoSchema);
+const Usuario = mongoose.model('usuario', usuarioShema);
 const Resena = mongoose.model('resena', resenaSchema);
 const JuegoTipoJuego = mongoose.model('juego_tipo_juego', juego_tipo_juegoSchema);
 
@@ -110,6 +131,91 @@ const JuegoTipoJuego = mongoose.model('juego_tipo_juego', juego_tipo_juegoSchema
 app.get('/', (req, res) => {
     res.send("<h1>Hola desde el backend</h1>")
 })
+
+// ========================== Usuario ==========================
+// --- Registrar Usuario ---
+app.post('/registrar_usuario', async (req, res) => {
+    try{
+        const {nombre_usuario, contrasena} = req.body
+
+        const buscar_usuario = await Usuario.findOne({ nombre_usuario })
+
+        if(buscar_usuario){
+            return res.status(409).json({
+                success: false,
+                message: 'Este usuario ya existe'
+            })
+        }
+
+        // Encriptar contraseña
+        const salt = await bcrypt.genSalt(10);
+        const hashedPass = await bcrypt.hash(contrasena, salt);
+
+        const nuevo_usuario = new Usuario({
+            nombre_usuario, contrasena: hashedPass
+        })
+
+        await nuevo_usuario.save();
+
+        return res.status(201).json({
+            success: true,
+            message: 'Usuario registrado con exito'
+        })
+    }
+    catch(error) {
+        console.error('Error: ' + error)
+        return res.status(500).json({
+            success: false,
+            message: "No se pudo registrar el usuario"
+        })
+    }
+})
+
+
+// --- Iniciar Sesion ---
+
+app.post('/iniciar_sesion', async (req, res) => {
+    try {
+        const { nombre_usuario, contrasena } = req.body;
+
+        const buscar_usuario = await Usuario.findOne({ nombre_usuario });
+
+        if (!buscar_usuario) {
+            return res.status(409).json({
+                success: false,
+                message: 'Credenciales incorrectas'
+            });
+        }
+
+        // Verificar contraseña
+        const validarPassword = await bcrypt.compare(contrasena, buscar_usuario.contrasena);
+
+        if (!validarPassword) {
+            return res.status(409).json({
+                success: false,
+                message: 'Credenciales incorrectas'
+            });
+        }
+
+        // Guardar datos en sesión
+        req.session.usuario = {
+            id: buscar_usuario._id,
+            nombre_usuario: buscar_usuario.nombre_usuario
+        };
+
+        return res.status(200).json({
+            success: true,
+            message: 'Inicio de sesión exitoso'
+        });
+
+    } catch (error) {
+        console.error('Error: ' + error);
+        return res.status(500).json({
+            success: false,
+            message: "Error en el servidor"
+        });
+    }
+});
 
 // ========================== Juegos ==========================
 
@@ -321,7 +427,7 @@ app.post('/eliminar_juego', async (req, res) => {
 // --- Agregar Reseña ---
 app.post('/agregar_resena', async (req, res) => {
     try{
-        const {nombre_autor, descripcion, id_juego} = req.body
+        const {id_usuario, descripcion, id_juego} = req.body
 
         const buscar_juego = await Juego.findById(id_juego)
 
@@ -333,7 +439,7 @@ app.post('/agregar_resena', async (req, res) => {
         }
 
         const nueva_resena = new Resena({
-            nombre_autor, descripcion, id_juego
+            id_usuario, descripcion, id_juego
         })
 
         await nueva_resena.save()
@@ -348,6 +454,34 @@ app.post('/agregar_resena', async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'No se pudo agregar la reseña'
+        })
+    }
+})
+
+// --- obtener reseñas del usuario ---
+app.post('/obtener_resenas_usuario', async (req, res) => {
+    try{
+        const {id_resena} = req.body
+
+        const buscar_resena = await Resena.findById(id_resena).populate("id_juego", "nombre estado puntuacion horas_jugadas")
+
+        if(!buscar_resena){
+            return res.status(404).json({
+                success: false,
+                message: 'Esa reseña no existe'
+            })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: buscar_resena
+        })
+    }
+    catch(error){
+        console.error('Error: ' + error) 
+        return res.status(500).json({
+            success: false,
+            message: "No se pudo obtener la reseña"
         })
     }
 })

@@ -1,3 +1,4 @@
+// --- Librerias ---
 const express = require('express');
 const mongoose = require('mongoose')
 const cors = require('cors')
@@ -87,14 +88,14 @@ const resenaSchema = new mongoose.Schema({
     createdAt: {type: Date, default: Date.now}
 })
 
-// "tabla intermedia"
+// -- "tabla intermedia" ---
 const juego_tipo_juegoSchema = new mongoose.Schema({
 id_juego: {type: mongoose.Schema.Types.ObjectId, ref: "juego"},
 id_tipo_juego: {type: mongoose.Schema.Types.ObjectId, ref: "tipo_juego"}
 })
 
 
-// --- Modelos ---
+// --- Modelos para hacer el CRUD ---
 const Juego = mongoose.model('juego', juegoSchema);
 const TipoJuego = mongoose.model('tipo_juego', tipo_juegoSchema);
 const Resena = mongoose.model('resena', resenaSchema);
@@ -116,6 +117,7 @@ app.get('/', (req, res) => {
 // --- agregar un juego ---
 app.post('/agregar_juego', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {imagen_url, nombre, estado, puntuacion, horas_jugadas, id_tipo_juego} = req.body
 
         const buscar_juego = await Juego.findOne({nombre})
@@ -127,12 +129,14 @@ app.post('/agregar_juego', async (req, res) => {
             })
         }
 
+        //Crear un juego en la base de datos
         const nuevo_juego = new Juego({
             imagen_url, nombre, estado, puntuacion, horas_jugadas
         })
 
         const juego_guardado = await nuevo_juego.save();
 
+        //Recorrer el array de tipo de juegos (id_tipo_juego)
         for (let i = 0; i < id_tipo_juego.length; i++) {
             const agregar_tipo_juego = new JuegoTipoJuego({
                 id_juego: juego_guardado._id,
@@ -158,6 +162,7 @@ app.post('/agregar_juego', async (req, res) => {
 // --- obtener un juego por Id ---
 app.post('/obtener_juego_id', async (req, res) => {
     try {
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const { id_juego } = req.body
 
         const buscar_juego = await Juego.findById(id_juego)
@@ -168,6 +173,7 @@ app.post('/obtener_juego_id', async (req, res) => {
             })
         }
 
+        //Populate es para buscar datos por medio de las relaciones entre colecciones
         const buscar_tipo_juego = await JuegoTipoJuego.find({ id_juego }).populate("id_tipo_juego", "nombre_tipo")
         const buscar_resenas = await Resena.find({ id_juego }).sort({createdAt: -1})
 
@@ -202,7 +208,7 @@ app.get('/obtener_juegos', async (req, res) => {
             })
         }
 
-        // Para cada juego, obtenemos tipos y reseñas
+        // Para cada juego, se obtienen juegos y reseñas
         const juegos_detalles = await Promise.all(
             buscar_juegos.map(async (juego) => {
                 const tipos = await JuegoTipoJuego.find({ id_juego: juego._id }).populate("id_tipo_juego", "nombre_tipo")
@@ -236,6 +242,7 @@ app.get('/obtener_juegos', async (req, res) => {
 // --- Editar Juego ---
 app.put('/editar_juego', async (req, res) => {
     try {
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const { id_juego, imagen_url, nombre, estado, puntuacion, horas_jugadas, id_tipo_juego } = req.body
 
         const buscar_juego = await Juego.findOne({
@@ -257,10 +264,10 @@ app.put('/editar_juego', async (req, res) => {
             { new: true }
         )
 
-        // Eliminar tipos antiguos
+        // Eliminar tipos de juegos antiguos
         await JuegoTipoJuego.deleteMany({ id_juego: new mongoose.Types.ObjectId(id_juego) })
 
-        // Agregar los tipos nuevos
+        // Agregar los tipos de juegos nuevos
         for (let i = 0; i < id_tipo_juego.length; i++) {
             const agregar_tipo_juego = new JuegoTipoJuego({
                 id_juego: editar_juego._id,
@@ -283,9 +290,10 @@ app.put('/editar_juego', async (req, res) => {
 })
 
 // --- Eliminar Juego ---
-app.post('/eliminar_juego', async (req, res) => {
+app.delete('/eliminar_juego/:id_juego', async (req, res) => {
     try{
-        const {id_juego} = req.body
+        //Si tiene "req.params" significa que son los datos que se tienen que recibir por medio de la ruta
+        const {id_juego} = req.params
 
         const buscar_juego = await Juego.findById(id_juego)
 
@@ -296,6 +304,7 @@ app.post('/eliminar_juego', async (req, res) => {
             })
         }
 
+        //Eliminar el juego y sus hijos con tipos de juegos y resenas
         await Juego.findByIdAndDelete(id_juego)
         await JuegoTipoJuego.deleteMany({ id_juego })
         await Resena.deleteMany({ id_juego })
@@ -321,6 +330,7 @@ app.post('/eliminar_juego', async (req, res) => {
 // --- Agregar Reseña ---
 app.post('/agregar_resena', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {nombre_autor, descripcion, id_juego} = req.body
 
         const buscar_juego = await Juego.findById(id_juego)
@@ -336,6 +346,7 @@ app.post('/agregar_resena', async (req, res) => {
             nombre_autor, descripcion, id_juego
         })
 
+        //Guardar la nueva reseña en la base de datos
         await nueva_resena.save()
 
         return res.status(201).json({
@@ -352,9 +363,10 @@ app.post('/agregar_resena', async (req, res) => {
     }
 })
 
-// --- obtener una reseña por Id ---
+// --- obtener una reseña por su Id ---
 app.post('/obtener_resena_id', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {id_resena} = req.body
 
         const buscar_resena = await Resena.findById(id_resena).populate("id_juego", "nombre estado puntuacion horas_jugadas")
@@ -383,6 +395,7 @@ app.post('/obtener_resena_id', async (req, res) => {
 // --- obtener todas las reseñas de un juego ---
 app.post('/obtener_resenas', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {id_juego} = req.body
 
         const buscar_resenas = await Resena.find({id_juego}).sort({createdAt: -1})
@@ -405,8 +418,10 @@ app.post('/obtener_resenas', async (req, res) => {
 // --- Editar Reseña ---
 app.put('/editar_resena', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {nombre_autor, id_resena, descripcion} = req.body
 
+        //Encontrar la resña por el id y actualizarla
         await Resena.findByIdAndUpdate(id_resena, {
             nombre_autor, descripcion
         }, {new: true})
@@ -428,6 +443,7 @@ app.put('/editar_resena', async (req, res) => {
 // --- Eliminar Reseña ---
 app.post('/eliminar_resena', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {id_resena} = req.body
 
         const buscar_resena = await Resena.findById(id_resena)
@@ -439,6 +455,7 @@ app.post('/eliminar_resena', async (req, res) => {
             })
         }
 
+        //Encontrar la reseña por el id y eliminarla
         await Resena.findByIdAndDelete(id_resena)
 
         return res.status(200).json({
@@ -484,6 +501,7 @@ app.get('/obtener_tipos_juegos', async (req, res) => {
 // --- Filtrar por estado del juego ---
 app.post('/filtrar_nombre', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const { nombre } = req.body
 
         const juegos = await Juego.find({
@@ -533,6 +551,7 @@ app.post('/filtrar_nombre', async (req, res) => {
 // --- Filtrar por tipo de juego ---
 app.post('/filtrar_tipo_juego', async (req, res) => {
     try {
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const { id_tipo_juego } = req.body
 
         const relaciones = await JuegoTipoJuego.find({ id_tipo_juego })
@@ -574,6 +593,7 @@ app.post('/filtrar_tipo_juego', async (req, res) => {
 // --- Filtrar por estado del juego ---
 app.post('/filtrar_estado', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {estado} = req.body
 
         const buscar_juegos = await Juego.find({estado})
@@ -621,6 +641,7 @@ app.post('/filtrar_estado', async (req, res) => {
 // --- Filtrar por puntuacion del juego ---
 app.post('/filtrar_puntuacion', async (req, res) => {
     try{
+        //Si tiene "req.body" significa que son los datos que se tienen que recibir por medio de un JSON para hacer funcionar el metodo
         const {puntuacion} = req.body
 
         const buscar_juegos = await Juego.find({puntuacion})
